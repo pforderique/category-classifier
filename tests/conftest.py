@@ -56,6 +56,7 @@ def trained_pack(tmp_path: Path, sample_df: pd.DataFrame) -> Path:
         encoder=encoder,
         class_counts_total=split.class_counts_total,
         device=Device.CPU,
+        generate_graphs=False,
     )
     model_dir = tmp_path / "artifacts" / "test-pack"
     return save_model_pack(model_dir=model_dir, result=result)

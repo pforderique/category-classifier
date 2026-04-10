@@ -54,6 +54,15 @@ def save_model_pack(model_dir: Path, result: TrainResult) -> Path:
     with metrics_path.open("w", encoding="utf-8") as handle:
         json.dump(metrics_payload, handle, indent=2, ensure_ascii=False, sort_keys=True)
 
+    # Save figures if they exist
+    if result.figures:
+        figures_dir = pack_dir / "figures"
+        figures_dir.mkdir(exist_ok=True)
+        for fig_name, fig_bytes in result.figures.items():
+            fig_path = figures_dir / fig_name
+            with fig_path.open("wb") as handle:
+                handle.write(fig_bytes)
+
     return pack_dir
 
 

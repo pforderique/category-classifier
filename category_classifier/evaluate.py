@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from io import BytesIO
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from sklearn.metrics import accuracy_score, confusion_matrix, f1_score
@@ -25,6 +27,7 @@ class TrainResult:
     metrics: dict[str, object]
     manifest: dict[str, object]
     model_state: dict[str, object]
+    figures: dict[str, bytes] | None = None
 
 
 def _predict_ids(model: LinearClassifier, features: np.ndarray, device: str) -> np.ndarray:
@@ -34,12 +37,73 @@ def _predict_ids(model: LinearClassifier, features: np.ndarray, device: str) -> 
     return torch.argmax(logits, dim=1).cpu().numpy()
 
 
+def _generate_figures(
+    confusion: np.ndarray,
+    accuracy: float,
+    macro_f1: float,
+    labels: list[str],
+) -> dict[str, bytes]:
+    """Generate performance visualization figures as PNG bytes."""
+    figures = {}
+
+    # Confusion matrix heatmap
+    fig, ax = plt.subplots(figsize=(10, 8))
+    im = ax.imshow(confusion, cmap="Blues", aspect="auto")
+    ax.set_xticks(range(len(labels)))
+    ax.set_yticks(range(len(labels)))
+    ax.set_xticklabels(labels, rotation=45, ha="right")
+    ax.set_yticklabels(labels)
+    ax.set_xlabel("Predicted")
+    ax.set_ylabel("Actual")
+    ax.set_title("Confusion Matrix")
+    plt.colorbar(im, ax=ax)
+    for i in range(len(labels)):
+        for j in range(len(labels)):
+            ax.text(j, i, confusion[i, j], ha="center", va="center", color="black", fontsize=10)
+    fig.tight_layout()
+    buf = BytesIO()
+    plt.savefig(buf, format="png", bbox_inches="tight")
+    buf.seek(0)
+    figures["confusion_matrix.png"] = buf.getvalue()
+    plt.close(fig)
+
+    # Metrics summary figure
+    fig, ax = plt.subplots(figsize=(6, 4))
+    ax.axis("off")
+    metrics_text = f"Evaluation Metrics\n\nTop-1 Accuracy: {accuracy:.4f}\nMacro F1: {macro_f1:.4f}"
+    ax.text(0.5, 0.5, metrics_text, ha="center", va="center", fontsize=14, family="monospace")
+    buf = BytesIO()
+    plt.savefig(buf, format="png", bbox_inches="tight")
+    buf.seek(0)
+    figures["metrics_summary.png"] = buf.getvalue()
+    plt.close(fig)
+
+    # Per-class accuracy
+    per_class_acc = np.diag(confusion) / confusion.sum(axis=1)
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.barh(labels, per_class_acc)
+    ax.set_xlabel("Accuracy")
+    ax.set_title("Per-Class Accuracy")
+    ax.set_xlim(0, 1)
+    for i, v in enumerate(per_class_acc):
+        ax.text(v + 0.02, i, f"{v:.3f}", va="center")
+    fig.tight_layout()
+    buf = BytesIO()
+    plt.savefig(buf, format="png", bbox_inches="tight")
+    buf.seek(0)
+    figures["per_class_accuracy.png"] = buf.getvalue()
+    plt.close(fig)
+
+    return figures
+
+
 def evaluate_model(
     trained: TrainedModel,
     test_df: pd.DataFrame,
     encoder: TextEncoder,
     class_counts_total: dict[str, int],
     device: Device,
+    generate_graphs: bool = True,
 ) -> TrainResult:
     """Evaluate a trained model on an explicit test frame."""
 
@@ -87,10 +151,16 @@ def evaluate_model(
         "training_wall_time_sec": trained.training_wall_time_sec,
     }
 
+    figures = None
+    if generate_graphs:
+        labels = [id_to_display[i] for i in range(len(id_to_display))]
+        figures = _generate_figures(confusion, accuracy, macro_f1, labels)
+
     return TrainResult(
         model=trained.model,
         mappings=trained.mappings,
         metrics=metrics,
         manifest=trained.manifest,
         model_state=trained.model_state,
+        figures=figures,
     )

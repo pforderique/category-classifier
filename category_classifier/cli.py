@@ -39,6 +39,7 @@ def _build_parser() -> argparse.ArgumentParser:
     train_parser.add_argument("--device", default="cpu", choices=["cpu", "mps", "auto"])
     train_parser.add_argument("--epochs", type=int, default=50)
     train_parser.add_argument("--batch-size", type=int, default=64)
+    train_parser.add_argument("--test-size", type=float, default=0.2)
     train_parser.add_argument("--learning-rate", type=float, default=1e-2)
     train_parser.add_argument("--weight-decay", type=float, default=1e-4)
     train_parser.add_argument("--seed", type=int, default=42)
