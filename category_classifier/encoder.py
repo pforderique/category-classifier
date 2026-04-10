@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 from typing import Protocol
+import io
+import sys
+import warnings
 
 import numpy as np
 
@@ -24,10 +27,21 @@ class SentenceTransformerEncoder:
     """SentenceTransformer wrapper with lazy import."""
 
     def __init__(self, model_name: str, device: str = "cpu") -> None:
-        from sentence_transformers import SentenceTransformer
+        # Suppress HF Hub warning by redirecting stderr during model download
+        _original_stderr = sys.stderr
+        _suppressed_output = io.StringIO()
+        sys.stderr = _suppressed_output
+        
+        try:
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore")
+                from sentence_transformers import SentenceTransformer
 
-        self.name = model_name
-        self._model = SentenceTransformer(model_name, device=device)
+                self.name = model_name
+                self._model = SentenceTransformer(model_name, device=device)
+        finally:
+            sys.stderr = _original_stderr
+            
         if (dim := self._model.get_sentence_embedding_dimension()) is not None:
             self.embedding_dim = dim
         else:

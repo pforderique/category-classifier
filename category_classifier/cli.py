@@ -2,10 +2,28 @@
 
 from __future__ import annotations
 
+# Suppress noisy warnings BEFORE any imports
+import io
+import logging
+import os
+import sys
+import warnings
+
+# Capture and suppress HF Hub warning during model download
+_original_stderr = sys.stderr
+_suppressed_output = io.StringIO()
+
+os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+warnings.filterwarnings("ignore")
+logging.getLogger("transformers.modeling_utils").setLevel(logging.ERROR)
+logging.getLogger("transformers").setLevel(logging.ERROR)
+logging.getLogger("tqdm").setLevel(logging.ERROR)
+logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
+
 import argparse
 import json
 from pathlib import Path
-import sys
 
 from category_classifier.artifacts import resolve_model_pack_path, save_model_pack
 from category_classifier.benchmark import benchmark_model_pack
@@ -15,7 +33,6 @@ from category_classifier.encoder import SentenceTransformerEncoder
 from category_classifier.predictor import Predictor
 from category_classifier.runtime import resolve_device
 from category_classifier.training import TrainConfig, split_dataset, train_model
-
 
 DEFAULT_ENCODER_MODEL = "sentence-transformers/paraphrase-MiniLM-L3-v2"
 
