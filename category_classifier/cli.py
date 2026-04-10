@@ -10,10 +10,11 @@ import sys
 from category_classifier.artifacts import resolve_model_pack_path, save_model_pack
 from category_classifier.benchmark import benchmark_model_pack
 from category_classifier.dataset import load_transactions
+from category_classifier.evaluate import evaluate_model
 from category_classifier.encoder import SentenceTransformerEncoder
 from category_classifier.predictor import Predictor
 from category_classifier.runtime import resolve_device
-from category_classifier.training import TrainConfig, evaluate_model, train_model
+from category_classifier.training import TrainConfig, split_dataset, train_model
 
 
 DEFAULT_ENCODER_MODEL = "sentence-transformers/paraphrase-MiniLM-L3-v2"
@@ -83,15 +84,23 @@ def _cmd_train(args: argparse.Namespace) -> int:
         learning_rate=args.learning_rate,
         weight_decay=args.weight_decay,
         seed=args.seed,
+        test_size=args.test_size,
     )
+    split = split_dataset(df, test_size=config.test_size, seed=config.seed)
     trained = train_model(
-        df=df,
+        train_df=split.train_df,
         encoder=encoder,
         model_name=args.model_name,
-        device=device,
         config=config,
+        device=device,
     )
-    result = evaluate_model(trained, device=device)
+    result = evaluate_model(
+        trained,
+        test_df=split.test_df,
+        encoder=encoder,
+        class_counts_total=split.class_counts_total,
+        device=device,
+    )
 
     model_dir = Path(args.artifacts_dir) / args.model_name
     model_pack_path = save_model_pack(model_dir=model_dir, result=result)

@@ -9,8 +9,8 @@ from pathlib import Path
 
 import torch
 
+from category_classifier.evaluate import TrainResult
 from category_classifier.errors import ModelPackError
-from category_classifier.training import TrainResult
 
 
 @dataclass(frozen=True)
@@ -24,7 +24,7 @@ class ModelPack:
     model_state: dict[str, object]
 
 
-def save_model_pack(model_dir: str | Path, result: TrainResult) -> Path:
+def save_model_pack(model_dir: Path, result: TrainResult) -> Path:
     """Write model pack files to disk."""
     pack_dir = Path(model_dir)
     pack_dir.mkdir(parents=True, exist_ok=True)

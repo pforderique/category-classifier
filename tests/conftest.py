@@ -6,7 +6,9 @@ import pandas as pd
 import pytest
 
 from category_classifier.artifacts import save_model_pack
-from category_classifier.training import TrainConfig, evaluate_model, train_model
+from category_classifier.evaluate import evaluate_model
+from category_classifier.runtime import Device
+from category_classifier.training import TrainConfig, split_dataset, train_model
 from tests.helpers import DummyEncoder
 
 
@@ -40,13 +42,20 @@ def sample_df() -> pd.DataFrame:
 def trained_pack(tmp_path: Path, sample_df: pd.DataFrame) -> Path:
     encoder = DummyEncoder(embedding_dim=8)
     config = TrainConfig(epochs=6, batch_size=4, seed=42)
+    split = split_dataset(sample_df, test_size=config.test_size, seed=config.seed)
     trained = train_model(
-        df=sample_df,
+        train_df=split.train_df,
         encoder=encoder,
         model_name="test-pack",
-        device="cpu",
         config=config,
+        device=Device.CPU,
     )
-    result = evaluate_model(trained)
+    result = evaluate_model(
+        trained,
+        test_df=split.test_df,
+        encoder=encoder,
+        class_counts_total=split.class_counts_total,
+        device=Device.CPU,
+    )
     model_dir = tmp_path / "artifacts" / "test-pack"
     return save_model_pack(model_dir=model_dir, result=result)
