@@ -25,33 +25,32 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 uv sync --extra dev
 ```
 
-3. Train:
+3. Train a model (first run downloads the sentence embedder):
 
 ```bash
 uv run category-classifier train \
   --data data/transactions.csv \
-  --model-name personal-v1 \
-  --artifacts-dir artifacts \
-  --device cpu
+  --model-name personal-v1
 ```
 
-4. Predict:
+The output JSON shows the model pack location and evaluation metrics (accuracy, F1, confusion matrix). Model packs are saved to `artifacts/<model_name>/` with figures/ subfolder containing confusion matrix and per-class accuracy plots.
+
+4. Predict on a transaction:
 
 ```bash
 uv run category-classifier predict \
   --model-pack personal-v1 \
-  --artifacts-dir artifacts \
-  --item-name "Amex Gold Renewal Fee" \
-  --price "$250.00"
+  --item-name "Dinner at Nobu" \
+  --price "120.50"
 ```
 
-5. Benchmark:
+5. Benchmark end-to-end latency:
 
 ```bash
 uv run category-classifier benchmark \
   --model-pack personal-v1 \
-  --artifacts-dir artifacts \
-  --devices cpu,mps
+  --devices cpu,mps \
+  --iterations 100
 ```
 
 ## Dataset contract
@@ -75,7 +74,15 @@ Notes:
 
 Each trained model pack writes:
 
-- `model.pt`
-- `manifest.json`
-- `label_map.json`
-- `metrics.json`
+- `model.pt` — PyTorch model weights
+- `manifest.json` — training config, schema version, class order, price normalization params
+- `label_map.json` — category mappings (clean, display, ID)
+- `metrics.json` — accuracy, F1, confusion matrix, class counts
+- `figures/` — PNG visualizations (confusion matrix heatmap, per-class accuracy, metrics summary)
+
+## Notes
+
+- First `train` run downloads the sentence embedder (~200MB); subsequent runs use the cached model.
+- During training, you may see matplotlib font warnings about emoji glyphs—these are harmless and do not affect PNG figure generation or model accuracy.
+- Price normalization uses training set statistics; the same `price_mean` and `price_std` are applied at predict time to avoid data leakage.
+- Dataset rows with missing required fields are logged and skipped.
