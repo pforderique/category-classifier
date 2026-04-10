@@ -12,6 +12,7 @@ from sklearn.model_selection import train_test_split
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm.auto import tqdm
+import loguru
 
 from category_classifier.dataset import CategoryMappings, build_category_mappings
 from category_classifier.encoder import TextEncoder
@@ -19,6 +20,7 @@ from category_classifier.model import LinearClassifier
 from category_classifier.runtime import Device, resolve_device
 
 
+_logger = loguru.logger.bind(module="training")
 DEFAULT_SEED = 42
 DEFAULT_TEST_SIZE = 0.2
 
@@ -175,6 +177,7 @@ def train_model(
         price_std=price_std,
     )
 
+    _logger.info(f"Training on {len(train_df)} rows with {len(mappings.clean_to_id)} classes using device: {resolved_device}")
     started_at = time.perf_counter()
     model = _train_head(
         features=train_features,
@@ -185,6 +188,7 @@ def train_model(
         show_progress=show_progress,
     )
     elapsed = time.perf_counter() - started_at
+    _logger.info(f"Training completed in {elapsed:.2f} seconds")
 
     manifest = {
         "schema_version": 1,
