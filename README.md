@@ -29,7 +29,7 @@ uv sync --extra dev
 
 ```bash
 uv run category-classifier train \
-  --data data/transactions.tsv \
+  --data data/transactions.csv \
   --model-name personal-v1 \
   --artifacts-dir artifacts \
   --device cpu
