@@ -1,18 +1,17 @@
-"""Training pipeline and evaluation."""
+"""Training pipeline and split utilities."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-import time
-from typing import Any
 import random
+import time
+from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import accuracy_score, confusion_matrix, f1_score
 from sklearn.model_selection import train_test_split
 import torch
 from torch.utils.data import DataLoader, TensorDataset
+from tqdm.auto import tqdm
 
 from category_classifier.dataset import CategoryMappings, build_category_mappings
 from category_classifier.encoder import TextEncoder
@@ -37,14 +36,12 @@ class TrainConfig:
 
 
 @dataclass(frozen=True)
-class TrainResult:
-    """Outputs from train + evaluate stages."""
+class SplitDataset:
+    """Caller-managed train/test split plus total class counts."""
 
-    model: LinearClassifier
-    mappings: CategoryMappings
-    metrics: dict[str, object]
-    manifest: dict[str, object]
-    model_state: dict[str, object]
+    train_df: pd.DataFrame
+    test_df: pd.DataFrame
+    class_counts_total: dict[str, int]
 
 
 @dataclass(frozen=True)
@@ -55,9 +52,6 @@ class TrainedModel:
     mappings: CategoryMappings
     manifest: dict[str, object]
     model_state: dict[str, object]
-    holdout_features: np.ndarray
-    holdout_labels: np.ndarray
-    class_counts_total: dict[Any, int]
     training_wall_time_sec: float
 
 
@@ -67,12 +61,12 @@ def _set_seed(seed: int) -> None:
     torch.manual_seed(seed)
 
 
-def _split_dataset(
+def split_dataset(
     df: pd.DataFrame,
     test_size: float,
     seed: int,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Deterministic stratified train/test split."""
+) -> SplitDataset:
+    """Deterministic stratified train/test split with total class counts."""
     class_counts = df["category_clean"].value_counts()
     too_small = class_counts[class_counts < 2]
     if not too_small.empty:
@@ -88,16 +82,21 @@ def _split_dataset(
         random_state=seed,
         stratify=df["category_clean"],
     )
-    return train_df.reset_index(drop=True), test_df.reset_index(drop=True)
+    return SplitDataset(
+        train_df=train_df.reset_index(drop=True),
+        test_df=test_df.reset_index(drop=True),
+        class_counts_total={str(clean): int(count) for clean, count in class_counts.to_dict().items()},
+    )
 
 
-def _prepare_features(
+def prepare_features(
     encoder: TextEncoder,
     item_names: list[str],
     prices: np.ndarray,
     price_mean: float,
     price_std: float,
 ) -> np.ndarray:
+    """Prepare model features by encoding item names and normalizing prices."""
     embeddings = encoder.encode(item_names)
     price_norm = ((prices - price_mean) / price_std).reshape(-1, 1)
     features = np.concatenate([embeddings, price_norm], axis=1)
@@ -110,6 +109,7 @@ def _train_head(
     num_classes: int,
     device: str,
     config: TrainConfig,
+    show_progress: bool,
 ) -> LinearClassifier:
     _set_seed(config.seed)
     model = LinearClassifier(input_dim=features.shape[1], num_classes=num_classes).to(device)
@@ -128,7 +128,11 @@ def _train_head(
     criterion = torch.nn.CrossEntropyLoss()
     model.train()
 
-    for _ in range(config.epochs):
+    epoch_iterator = tqdm(
+        range(config.epochs), desc="Training classifier", unit="epoch", leave=False
+    ) if show_progress else range(config.epochs)
+
+    for _ in epoch_iterator:
         for batch_x, batch_y in loader:
             batch_x = batch_x.to(device)
             batch_y = batch_y.to(device)
@@ -142,27 +146,19 @@ def _train_head(
     return model
 
 
-def _predict_ids(model: LinearClassifier, features: np.ndarray, device: str) -> np.ndarray:
-    model.eval()
-    with torch.no_grad():
-        logits = model(torch.tensor(features, dtype=torch.float32, device=device))
-    return torch.argmax(logits, dim=1).cpu().numpy()
-
-
 def train_model(
-    df: pd.DataFrame,
+    train_df: pd.DataFrame,
     encoder: TextEncoder,
     model_name: str,
-    device: Device = Device.AUTO,
     config: TrainConfig | None = None,
+    *,
+    device: Device = Device.AUTO,
+    show_progress: bool = True,
 ) -> TrainedModel:
-    """Train a fixed-encoder linear head model."""
+    """Train a fixed-encoder linear head model on a pre-split training frame."""
     config = config or TrainConfig()
-    started_at = time.perf_counter()
     resolved_device = resolve_device(str(device))
-
-    mappings = build_category_mappings(df)
-    train_df, test_df = _split_dataset(df, test_size=config.test_size, seed=config.seed)
+    mappings = build_category_mappings(train_df)
 
     price_mean = float(train_df["price"].mean())
     price_std = float(train_df["price"].std(ddof=0))
@@ -170,49 +166,36 @@ def train_model(
         price_std = 1.0
 
     train_labels = train_df["category_clean"].map(mappings.clean_to_id).to_numpy(dtype=np.int64)
-    test_labels = test_df["category_clean"].map(mappings.clean_to_id).to_numpy(dtype=np.int64)
 
-    train_features = _prepare_features(
+    train_features = prepare_features(
         encoder=encoder,
         item_names=train_df["item_name"].tolist(),
         prices=train_df["price"].to_numpy(dtype=np.float32),
         price_mean=price_mean,
         price_std=price_std,
     )
-    test_features = _prepare_features(
-        encoder=encoder,
-        item_names=test_df["item_name"].tolist(),
-        prices=test_df["price"].to_numpy(dtype=np.float32),
-        price_mean=price_mean,
-        price_std=price_std,
-    )
 
+    started_at = time.perf_counter()
     model = _train_head(
         features=train_features,
         labels=train_labels,
         num_classes=len(mappings.clean_to_id),
         device=str(resolved_device),
         config=config,
+        show_progress=show_progress,
     )
-
-    class_counts_total = {
-        clean: int(count) for clean, count in df["category_clean"].value_counts().to_dict().items()
-    }
-
     elapsed = time.perf_counter() - started_at
+
     manifest = {
         "schema_version": 1,
         "model_name": model_name,
         "encoder_model_name": encoder.name,
         "device_used": str(resolved_device),
         "seed": config.seed,
-        "test_size": config.test_size,
         "input_dim": int(train_features.shape[1]),
         "num_classes": int(len(mappings.clean_to_id)),
         "price_mean": price_mean,
         "price_std": price_std,
-        "train_rows": int(len(train_df)),
-        "test_rows": int(len(test_df)),
         "class_order": [mappings.id_to_clean[i] for i in range(len(mappings.id_to_clean))],
     }
 
@@ -227,51 +210,5 @@ def train_model(
         mappings=mappings,
         manifest=manifest,
         model_state=model_state,
-        holdout_features=test_features,
-        holdout_labels=test_labels,
-        class_counts_total=class_counts_total,
         training_wall_time_sec=elapsed,
-    )
-
-
-def evaluate_model(trained: TrainedModel, device: Device) -> TrainResult:
-    """Evaluate a trained model and build the full training result payload."""
-    resolved_device = (
-        resolve_device(str(device)) if device is not None else resolve_device(trained.manifest["device_used"])
-    )
-    pred_ids = _predict_ids(trained.model, trained.holdout_features, device=str(resolved_device))
-
-    accuracy = float(accuracy_score(trained.holdout_labels, pred_ids))
-    macro_f1 = float(
-        f1_score(
-            trained.holdout_labels,
-            pred_ids,
-            average="macro",
-            zero_division=0,
-        )
-    )
-    confusion = confusion_matrix(
-        trained.holdout_labels,
-        pred_ids,
-        labels=np.arange(len(trained.mappings.clean_to_id)),
-    )
-    id_to_display = {
-        idx: trained.mappings.clean_to_display[clean]
-        for idx, clean in trained.mappings.id_to_clean.items()
-    }
-    metrics = {
-        "top1_accuracy": accuracy,
-        "macro_f1": macro_f1,
-        "per_class_counts_total": trained.class_counts_total,
-        "confusion_matrix": confusion.tolist(),
-        "confusion_matrix_labels": [id_to_display[i] for i in range(len(id_to_display))],
-        "training_wall_time_sec": trained.training_wall_time_sec,
-    }
-
-    return TrainResult(
-        model=trained.model,
-        mappings=trained.mappings,
-        metrics=metrics,
-        manifest=trained.manifest,
-        model_state=trained.model_state,
     )
