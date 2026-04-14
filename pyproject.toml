@@ -22,12 +22,18 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
   "jupyter>=1.0",
+  "httpx>=0.27",
   "pytest>=8.0",
+]
+server = [
+  "fastapi>=0.115",
+  "uvicorn>=0.30",
 ]
 
 [project.scripts]
 category-classifier = "category_classifier.cli:main"
+category-classifier-serve = "app.server:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["category_classifier*"]
+include = ["category_classifier*", "app*"]
