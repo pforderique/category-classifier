@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from category_classifier.artifacts import load_model_pack
+from category_classifier.model_pack import load_model_pack
 from category_classifier.errors import ModelPackError
 
 

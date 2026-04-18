@@ -9,7 +9,7 @@ import time
 
 import torch
 
-from category_classifier.artifacts import resolve_model_pack_path
+from category_classifier.model_pack import resolve_model_pack_path
 from category_classifier.predictor import Predictor
 from category_classifier.runtime import is_mps_available
 
@@ -67,7 +67,7 @@ def _run_latency_benchmark(
 
 def benchmark_model_pack(
     model_pack: str,
-    artifacts_dir: str | Path,
+    models_dir: str | Path,
     devices: list[str],
     item_name: str,
     price: object,
@@ -75,7 +75,7 @@ def benchmark_model_pack(
     iterations: int = 200,
 ) -> list[BenchmarkResult]:
     """Benchmark end-to-end predict latency across selected devices."""
-    model_pack_path = resolve_model_pack_path(model_pack=model_pack, artifacts_dir=artifacts_dir)
+    model_pack_path = resolve_model_pack_path(model_pack=model_pack, models_dir=models_dir)
     results: list[BenchmarkResult] = []
 
     for device in devices:

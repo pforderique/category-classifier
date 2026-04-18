@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import torch
 
-from category_classifier.artifacts import load_model_pack
+from category_classifier.model_pack import load_model_pack
 from category_classifier.encoder import SentenceTransformerEncoder, TextEncoder
 from category_classifier.model import LinearClassifier
 from category_classifier.preprocessing import parse_price

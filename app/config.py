@@ -22,10 +22,24 @@ class ServerConfig:
     @classmethod
     def from_env(cls) -> "ServerConfig":
         """Load server configuration from environment variables."""
-        models_dir = os.environ.get("MODELS_DIR", "models")
+        models_dir = os.environ.get("MODELS_DIR")
+        default_model = os.environ.get("DEFAULT_MODEL")
+
+        legacy_model_pack_path = os.environ.get("MODEL_PACK_PATH")
+        if legacy_model_pack_path:
+            legacy_path = Path(legacy_model_pack_path).expanduser()
+            if models_dir is None:
+                models_dir = str(legacy_path.parent)
+            if default_model is None:
+                default_model = legacy_path.name
+            logger.warning(
+                "MODEL_PACK_PATH is deprecated; prefer MODELS_DIR and DEFAULT_MODEL."
+            )
+
+        if models_dir is None:
+            models_dir = "models"
         logger.info("Using models directory: {}", models_dir)
 
-        default_model = os.environ.get("DEFAULT_MODEL")
         if default_model:
             logger.info("Default model requested at startup: {}", default_model)
 
@@ -60,9 +74,7 @@ def resolve_models_dir(models_dir: str) -> Path:
         resolved = candidate
     else:
         package_root = Path(__file__).resolve().parent.parent
-        cwd_candidate = (Path.cwd() / candidate).resolve()
-        package_candidate = (package_root / candidate).resolve()
-        resolved = cwd_candidate if cwd_candidate.exists() else package_candidate
+        resolved = (package_root / candidate).resolve()
 
     resolved.mkdir(parents=True, exist_ok=True)
     if not resolved.is_dir():

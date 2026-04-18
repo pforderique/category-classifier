@@ -5,7 +5,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from category_classifier.artifacts import save_model_pack
+from category_classifier.model_pack import save_model_pack
 from category_classifier.evaluate import evaluate_model
 from category_classifier.runtime import Device
 from category_classifier.training import TrainConfig, split_dataset, train_model
@@ -58,5 +58,5 @@ def trained_pack(tmp_path: Path, sample_df: pd.DataFrame) -> Path:
         device=Device.CPU,
         generate_graphs=False,
     )
-    model_dir = tmp_path / "artifacts" / "test-pack"
+    model_dir = tmp_path / "seed-models" / "test-pack"
     return save_model_pack(model_dir=model_dir, result=result)

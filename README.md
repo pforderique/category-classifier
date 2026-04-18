@@ -203,7 +203,9 @@ curl "http://127.0.0.1:8000/prediction/?item_name=Coffee%20Shop&price=6.50"
 Environment variables:
 
 - `MODELS_DIR` - directory containing model packs as subdirectories, e.g. `models/personal-v1/`
+- Relative `MODELS_DIR` paths resolve from the project root (the directory containing `app/` and `category_classifier/`)
 - `DEFAULT_MODEL` - optional model name to load at startup
+- `MODEL_PACK_PATH` - deprecated compatibility fallback; when set, it is mapped to `MODELS_DIR=<parent>` and `DEFAULT_MODEL=<basename>`
 - `INFERENCE_DEVICE` - `auto`, `cpu`, or `mps`
 - `HOST` - bind address, default `0.0.0.0`
 - `PORT` - bind port, default `8000`

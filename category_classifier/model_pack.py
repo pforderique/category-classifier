@@ -95,16 +95,16 @@ def load_model_pack(model_dir: str | Path) -> ModelPack:
     )
 
 
-def resolve_model_pack_path(model_pack: str, artifacts_dir: str | Path) -> Path:
-    """Resolve either an explicit path or a model name under artifacts dir."""
+def resolve_model_pack_path(model_pack: str, models_dir: str | Path) -> Path:
+    """Resolve either an explicit path or a model name under models dir."""
     candidate = Path(model_pack)
     if candidate.exists():
         return candidate
 
-    named = Path(artifacts_dir) / model_pack
+    named = Path(models_dir) / model_pack
     if named.exists():
         return named
 
     raise FileNotFoundError(
-        f"Model pack '{model_pack}' not found as a path or under artifacts dir '{artifacts_dir}'."
+        f"Model pack '{model_pack}' not found as a path or under models dir '{models_dir}'."
     )

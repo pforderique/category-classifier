@@ -30,7 +30,7 @@ def test_benchmark_cpu_runs(trained_pack: Path, monkeypatch) -> None:
 
     results = benchmark_model_pack(
         model_pack=str(trained_pack),
-        artifacts_dir=trained_pack.parent,
+        models_dir=trained_pack.parent,
         devices=["cpu"],
         item_name="Coffee purchase",
         price="$4.50",
@@ -50,7 +50,7 @@ def test_benchmark_mps_skips_when_unavailable(trained_pack: Path, monkeypatch) -
     monkeypatch.setattr(bench_module, "is_mps_available", lambda: False)
     results = benchmark_model_pack(
         model_pack=str(trained_pack),
-        artifacts_dir=trained_pack.parent,
+        models_dir=trained_pack.parent,
         devices=["mps"],
         item_name="Coffee purchase",
         price="$4.50",
