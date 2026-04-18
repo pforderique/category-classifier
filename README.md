@@ -78,10 +78,126 @@ The server exposes these routes:
 - `GET /model`
 - `POST /switch` with JSON body `{"model_name":"<name>"}`
 
-Example request:
+### API examples
+
+Check health and readiness:
+
+```bash
+curl "http://127.0.0.1:8000/healthz"
+```
+
+Example response:
+
+```json
+{
+  "status": "ok",
+  "ready": true,
+  "models_dir": "/Users/pfo/ws/category-classifier/models",
+  "active_model": "personal-v1",
+  "device": "cpu"
+}
+```
+
+List available models:
+
+```bash
+curl "http://127.0.0.1:8000/available_models"
+```
+
+Example response:
+
+```json
+[
+  {
+    "model_name": "personal-v1",
+    "size_mb": 2.31,
+    "num_params": 1538,
+    "active": true
+  },
+  {
+    "model_name": "personal-v2",
+    "size_mb": 2.52,
+    "num_params": 1538,
+    "active": false
+  }
+]
+```
+
+Get current model:
+
+```bash
+curl "http://127.0.0.1:8000/model"
+```
+
+Example response when a model is loaded:
+
+```json
+{
+  "model_name": "personal-v1",
+  "size_mb": 2.31,
+  "num_params": 1538,
+  "active": true
+}
+```
+
+Example response when no model is loaded yet:
+
+```json
+{
+  "model_name": null,
+  "size_mb": null,
+  "num_params": null,
+  "active": false
+}
+```
+
+Switch active model:
+
+```bash
+curl -X POST "http://127.0.0.1:8000/switch" \
+  -H "Content-Type: application/json" \
+  -d '{"model_name":"personal-v2"}'
+```
+
+Example response:
+
+```json
+{
+  "model_name": "personal-v2",
+  "size_mb": 2.52,
+  "num_params": 1538,
+  "active": true
+}
+```
+
+Run a prediction:
 
 ```bash
 curl "http://127.0.0.1:8000/prediction/?item_name=Monthly%20Rent&price=2200.00"
+```
+
+Example response:
+
+```json
+{
+  "prediction": "🏠Housing"
+}
+```
+
+Start with no default model and switch later:
+
+```bash
+unset DEFAULT_MODEL
+uv run category-classifier-serve
+```
+
+Then in another shell:
+
+```bash
+curl -X POST "http://127.0.0.1:8000/switch" \
+  -H "Content-Type: application/json" \
+  -d '{"model_name":"personal-v1"}'
+curl "http://127.0.0.1:8000/prediction/?item_name=Coffee%20Shop&price=6.50"
 ```
 
 Environment variables:
