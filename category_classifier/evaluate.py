@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from io import BytesIO
 import warnings
 
@@ -14,21 +13,10 @@ import torch
 
 from category_classifier.dataset import CategoryMappings
 from category_classifier.encoder import TextEncoder
+from category_classifier.model_pack import TrainResult
 from category_classifier.runtime import Device
 from category_classifier.training import TrainedModel, prepare_features
 from category_classifier.model import LinearClassifier
-
-
-@dataclass(frozen=True)
-class TrainResult:
-    """Outputs from train + evaluate stages."""
-
-    model: LinearClassifier
-    mappings: CategoryMappings
-    metrics: dict[str, object]
-    manifest: dict[str, object]
-    model_state: dict[str, object]
-    figures: dict[str, bytes] | None = None
 
 
 def _predict_ids(model: LinearClassifier, features: np.ndarray, device: str) -> np.ndarray:

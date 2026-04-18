@@ -9,8 +9,19 @@ from pathlib import Path
 
 import torch
 
-from category_classifier.evaluate import TrainResult
 from category_classifier.errors import ModelPackError
+
+
+@dataclass(frozen=True)
+class TrainResult:
+    """Outputs from train + evaluate stages."""
+
+    model: object
+    mappings: object
+    metrics: dict[str, object]
+    manifest: dict[str, object]
+    model_state: dict[str, object]
+    figures: dict[str, bytes] | None = None
 
 
 @dataclass(frozen=True)
