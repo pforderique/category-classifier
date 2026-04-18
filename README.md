@@ -232,22 +232,32 @@ Upload all valid model packs under `LOCAL_MODELS_DIR`:
 ```
 
 The script always requires confirmation (`Type UPLOAD to continue`) before any transfer.
+If no SSH key is configured/found, it falls back to normal SSH auth (password prompt).
 
 Deployment `.env` settings used by upload:
 
 - `LOCAL_MODELS_DIR` - local source directory, usually `./models`
-- `DEPLOY_SSH_HOST` - VM host/IP
-- `DEPLOY_SSH_USER` - SSH user
+- `DEPLOY_SSH_HOST` - VM host/IP or DNS name (example: `203.0.113.10`)
+- `DEPLOY_SSH_USER` - SSH login user on the VM (common values: `ubuntu`, `ec2-user`, `root`)
 - `DEPLOY_SSH_PORT` - SSH port (default `22`)
-- `DEPLOY_SSH_KEY_PATH` - optional key path
+- `DEPLOY_SSH_KEY_PATH` - optional key path; if empty, script auto-detects `~/.ssh/id_ed25519` or `~/.ssh/id_rsa`
 - `DEPLOY_MODELS_DIR` - remote directory where model folders will be uploaded
+
+If SSH keys are not set up yet (common on a fresh Mac), run:
+
+```bash
+./scripts/setup-ssh-key.sh
+```
+
+This script creates a key if needed and installs it on the VM using your `.env` settings.
 
 ### friend workflow
 
 1. Share `.env` with your friend privately (it may include deployment credentials).
 2. Friend clones repo and runs `uv sync --extra dev --extra server`.
 3. Friend trains a model into `models/<model_name>/`.
-4. Friend uploads with `./scripts/upload-model.sh --model <model_name>` (or `--all`).
+4. If needed, friend runs `./scripts/setup-ssh-key.sh` once.
+5. Friend uploads with `./scripts/upload-model.sh --model <model_name>` (or `--all`).
 
 ### launchd deployment
 

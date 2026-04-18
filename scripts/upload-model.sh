@@ -73,8 +73,8 @@ if ! command -v ssh >/dev/null 2>&1; then
   echo "'ssh' is required but not found on PATH." >&2
   exit 1
 fi
-if ! command -v rsync >/dev/null 2>&1; then
-  echo "'rsync' is required but not found on PATH." >&2
+if ! command -v tar >/dev/null 2>&1; then
+  echo "'tar' is required but not found on PATH." >&2
   exit 1
 fi
 
@@ -84,6 +84,15 @@ LOCAL_MODELS_DIR="${LOCAL_MODELS_DIR/#\~/$HOME}"
 DEPLOY_SSH_KEY_PATH="${DEPLOY_SSH_KEY_PATH:-}"
 if [[ -n "${DEPLOY_SSH_KEY_PATH}" ]]; then
   DEPLOY_SSH_KEY_PATH="${DEPLOY_SSH_KEY_PATH/#\~/$HOME}"
+fi
+
+if [[ -z "${DEPLOY_SSH_KEY_PATH}" ]]; then
+  for candidate in "${HOME}/.ssh/id_ed25519" "${HOME}/.ssh/id_rsa"; do
+    if [[ -f "${candidate}" ]]; then
+      DEPLOY_SSH_KEY_PATH="${candidate}"
+      break
+    fi
+  done
 fi
 
 if [[ ! -d "${LOCAL_MODELS_DIR}" ]]; then
@@ -155,18 +164,25 @@ fi
 
 SSH_OPTS=(-p "${DEPLOY_SSH_PORT}")
 if [[ -n "${DEPLOY_SSH_KEY_PATH}" ]]; then
+  if [[ ! -f "${DEPLOY_SSH_KEY_PATH}" ]]; then
+    echo "Configured DEPLOY_SSH_KEY_PATH does not exist: ${DEPLOY_SSH_KEY_PATH}" >&2
+    exit 1
+  fi
   SSH_OPTS+=(-i "${DEPLOY_SSH_KEY_PATH}")
+  echo "Using SSH key: ${DEPLOY_SSH_KEY_PATH}"
+else
+  echo "No SSH key configured/found. SSH may prompt for password."
 fi
 
 REMOTE="${DEPLOY_SSH_USER}@${DEPLOY_SSH_HOST}"
+echo "Connecting to remote host..."
 ssh "${SSH_OPTS[@]}" "${REMOTE}" "mkdir -p '${DEPLOY_MODELS_DIR}'"
 
+echo "Uploading model pack data..."
+tar -C "${LOCAL_MODELS_DIR}" -czf - "${MODELS[@]}" \
+  | ssh "${SSH_OPTS[@]}" "${REMOTE}" "mkdir -p '${DEPLOY_MODELS_DIR}' && tar -xzf - -C '${DEPLOY_MODELS_DIR}'"
+
 for model in "${MODELS[@]}"; do
-  local_path="${LOCAL_MODELS_DIR}/${model}/"
-  remote_path="${DEPLOY_MODELS_DIR}/${model}/"
-  ssh "${SSH_OPTS[@]}" "${REMOTE}" "mkdir -p '${remote_path}'"
-  rsync -az -e "ssh -p ${DEPLOY_SSH_PORT}${DEPLOY_SSH_KEY_PATH:+ -i ${DEPLOY_SSH_KEY_PATH}}" \
-    "${local_path}" "${REMOTE}:${remote_path}"
   echo "Uploaded model: ${model}"
 done
 
