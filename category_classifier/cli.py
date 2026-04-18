@@ -49,8 +49,9 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     train_parser.add_argument("--model-name", required=True, help="Name of the output model pack.")
     train_parser.add_argument(
-        "--artifacts-dir",
-        default="artifacts",
+        "--models-dir",
+        dest="models_dir",
+        default="models",
         help="Directory where model packs are stored.",
     )
     train_parser.add_argument("--device", default="cpu", choices=["cpu", "mps", "auto"])
@@ -70,18 +71,18 @@ def _build_parser() -> argparse.ArgumentParser:
     predict_parser.add_argument(
         "--model-pack",
         required=True,
-        help="Model pack path or model name under --artifacts-dir.",
+        help="Model pack path or model name under --models-dir.",
     )
     predict_parser.add_argument("--item-name", required=True)
     predict_parser.add_argument("--price", required=True)
-    predict_parser.add_argument("--artifacts-dir", default="artifacts")
+    predict_parser.add_argument("--models-dir", "--artifacts-dir", dest="models_dir", default="models")
     predict_parser.add_argument("--device", default="cpu", choices=["cpu", "mps", "auto"])
 
     bench_parser = subparsers.add_parser(
         "benchmark", help="Measure end-to-end prediction latency by device."
     )
     bench_parser.add_argument("--model-pack", required=True)
-    bench_parser.add_argument("--artifacts-dir", default="artifacts")
+    bench_parser.add_argument("--models-dir", "--artifacts-dir", dest="models_dir", default="models")
     bench_parser.add_argument("--devices", default="cpu", help="Comma-separated list, e.g. cpu,mps")
     bench_parser.add_argument("--item-name", default="Coffee shop purchase")
     bench_parser.add_argument("--price", default="12.50")
@@ -120,7 +121,7 @@ def _cmd_train(args: argparse.Namespace) -> int:
         device=device,
     )
 
-    model_dir = Path(args.artifacts_dir) / args.model_name
+    model_dir = Path(args.models_dir) / args.model_name
     model_pack_path = save_model_pack(model_dir=model_dir, result=result)
 
     if result.mappings.warnings:
@@ -137,7 +138,7 @@ def _cmd_train(args: argparse.Namespace) -> int:
 
 
 def _cmd_predict(args: argparse.Namespace) -> int:
-    model_pack_path = resolve_model_pack_path(args.model_pack, artifacts_dir=args.artifacts_dir)
+    model_pack_path = resolve_model_pack_path(args.model_pack, artifacts_dir=args.models_dir)
     predictor = Predictor(model_pack_path=str(model_pack_path), device=args.device)
     predicted = predictor.predict(item_name=args.item_name, price=args.price)
     print(predicted)
@@ -148,7 +149,7 @@ def _cmd_benchmark(args: argparse.Namespace) -> int:
     devices = [part.strip() for part in args.devices.split(",") if part.strip()]
     results = benchmark_model_pack(
         model_pack=args.model_pack,
-        artifacts_dir=args.artifacts_dir,
+        artifacts_dir=args.models_dir,
         devices=devices,
         item_name=args.item_name,
         price=args.price,

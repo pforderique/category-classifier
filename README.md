@@ -7,7 +7,7 @@ Local transaction category classifier with a train/predict/benchmark CLI.
 - CSV/TSV ingestion with case-insensitive headers: `item`, `cost`, `date`, `category`
 - Category normalization that strips leading emoji for internal labels
 - PyTorch linear classifier trained on `[sentence_embedding ; normalized_price]`
-- Reusable model packs under `artifacts/<model_name>/`
+- Reusable model packs under `models/<model_name>/`
 - `predict` command that returns original display labels (emoji preserved)
 - `benchmark` command for end-to-end latency on CPU and optionally MPS
 - Optional FastAPI server for serving one model pack behind a tiny HTTP API
@@ -34,7 +34,7 @@ uv run category-classifier train \
   --model-name personal-v1
 ```
 
-The output JSON shows the model pack location and evaluation metrics (accuracy, F1, confusion matrix). Model packs are saved to `artifacts/<model_name>/` with figures/ subfolder containing confusion matrix and per-class accuracy plots.
+The output JSON shows the model pack location and evaluation metrics (accuracy, F1, confusion matrix). Model packs are saved to `models/<model_name>/` with figures/ subfolder containing confusion matrix and per-class accuracy plots.
 
 4. Predict on a transaction:
 
