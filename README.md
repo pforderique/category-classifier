@@ -2,6 +2,8 @@
 
 Local transaction category classifier with a train/predict/benchmark CLI.
 
+Requires Python 3.11 or newer.
+
 ## What this version includes
 
 - CSV/TSV ingestion with case-insensitive headers: `item`, `cost`, `date`, `category`
@@ -23,6 +25,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 2. Sync environment with `uv`:
 
 ```bash
+uv python install 3.11
 uv sync --extra dev
 ```
 
@@ -86,123 +89,17 @@ The server exposes these routes:
 
 ### API examples
 
-Check health and readiness:
+Minimal route examples:
 
 ```bash
 curl "http://127.0.0.1:8000/healthz"
-```
-
-Example response:
-
-```json
-{
-  "status": "ok",
-  "ready": true,
-  "models_dir": "/Users/pfo/ws/category-classifier/models",
-  "active_model": "personal-v1",
-  "device": "cpu"
-}
-```
-
-List available models:
-
-```bash
 curl "http://127.0.0.1:8000/available_models"
-```
-
-Example response:
-
-```json
-[
-  {
-    "model_name": "personal-v1",
-    "size_mb": 2.31,
-    "num_params": 1538,
-    "active": true
-  },
-  {
-    "model_name": "personal-v2",
-    "size_mb": 2.52,
-    "num_params": 1538,
-    "active": false
-  }
-]
-```
-
-Get current model:
-
-```bash
 curl "http://127.0.0.1:8000/model"
-```
 
-Example response when a model is loaded:
-
-```json
-{
-  "model_name": "personal-v1",
-  "size_mb": 2.31,
-  "num_params": 1538,
-  "active": true
-}
-```
-
-Example response when no model is loaded yet:
-
-```json
-{
-  "model_name": null,
-  "size_mb": null,
-  "num_params": null,
-  "active": false
-}
-```
-
-Switch active model:
-
-```bash
-curl -X POST "http://127.0.0.1:8000/switch" \
-  -H "Content-Type: application/json" \
-  -d '{"model_name":"personal-v2"}'
-```
-
-Example response:
-
-```json
-{
-  "model_name": "personal-v2",
-  "size_mb": 2.52,
-  "num_params": 1538,
-  "active": true
-}
-```
-
-Run a prediction:
-
-```bash
-curl "http://127.0.0.1:8000/prediction?item_name=Monthly%20Rent&price=2200.00"
-```
-
-Example response:
-
-```json
-{
-  "prediction": "🏠Housing"
-}
-```
-
-Start with no default model and switch later:
-
-```bash
-# clear DEFAULT_MODEL in .env, then run:
-uv run category-classifier-serve
-```
-
-Then in another shell:
-
-```bash
 curl -X POST "http://127.0.0.1:8000/switch" \
   -H "Content-Type: application/json" \
   -d '{"model_name":"personal-v1"}'
+
 curl "http://127.0.0.1:8000/prediction?item_name=Coffee%20Shop&price=6.50"
 ```
 
@@ -215,10 +112,22 @@ Environment variables:
 - `HOST` - bind address, default `0.0.0.0`
 - `PORT` - bind port, default `8000`
 
-### upload-model tool
+## Deployment (VM)
 
-Use `scripts/upload-model.sh` to upload model packs to your VM over SSH.
-This is a maintainer-oriented flow and assumes your SSH access is already configured.
+This section is the production path.
+
+### 1. Configure local deploy settings
+
+Set these in your local `.env`:
+
+- `LOCAL_MODELS_DIR` - local source directory, usually `./models`
+- `DEPLOY_GCLOUD_INSTANCE` - instance name (example: `pfo-server`)
+- `DEPLOY_GCLOUD_ZONE` - instance zone (example: `us-east1-b`)
+- `DEPLOY_GCLOUD_PROJECT` - GCP project id (example: `orderique`)
+- `DEPLOY_MODELS_DIR` - remote directory where model folders will be uploaded
+- `DEPLOY_USE_SUDO` - set `1` only if `DEPLOY_MODELS_DIR` is root-owned (for example under `/opt`)
+
+### 2. Upload models to VM
 
 Upload one model:
 
@@ -226,66 +135,59 @@ Upload one model:
 ./scripts/upload-model.sh --model personal-v1
 ```
 
-Upload all valid model packs under `LOCAL_MODELS_DIR`:
+Upload all valid models under `LOCAL_MODELS_DIR`:
 
 ```bash
 ./scripts/upload-model.sh --all
 ```
 
-The script always requires confirmation (`Type UPLOAD to continue`) before any transfer.
+The script asks for confirmation before transfer (press Enter to continue), and if a remote model already exists it warns and asks again before overwriting.
+Use `--approve` to skip prompts in non-interactive workflows:
 
-Deployment `.env` settings used by upload:
+```bash
+./scripts/upload-model.sh --model personal-v1 --approve
+```
 
-- `LOCAL_MODELS_DIR` - local source directory, usually `./models`
-- `DEPLOY_TARGET` - SSH target (example: `pfo@pfo-server` or `ubuntu@203.0.113.10`)
-- `DEPLOY_MODELS_DIR` - remote directory where model folders will be uploaded
+For `/opt/...` deployments, set `DEPLOY_USE_SUDO=1` (this is the default in `.env.example`).
+
+### 3. Configure runtime env on the VM
+
+On the VM, create a `.env` in the repo root with at least:
+
+```env
+MODELS_DIR=/opt/category-classifier/models
+DEFAULT_MODEL=personal-v1
+INFERENCE_DEVICE=auto
+HOST=0.0.0.0
+PORT=8000
+```
+
+### 4. Start the API on the VM
+
+```bash
+gcloud compute ssh --zone "us-east1-b" "pfo-server" --project "orderique"
+# then on the VM:
+cd /path/to/category-classifier
+uv sync --extra server
+uv run category-classifier-serve
+```
+
+### 5. Verify and switch model
+
+```bash
+curl "http://<vm-ip>:8000/healthz"
+curl "http://<vm-ip>:8000/model"
+curl -X POST "http://<vm-ip>:8000/switch" \
+  -H "Content-Type: application/json" \
+  -d '{"model_name":"personal-v1"}'
+```
 
 ### friend workflow
 
-1. Friend clones repo and runs `uv sync --extra dev`.
-2. Friend trains a model into `models/<model_name>/`.
-3. Friend sends you the model folder directly (shared drive/email/archive).
-4. You place it under your local `models/` and run `./scripts/upload-model.sh --model <model_name>`.
-
-### launchd deployment
-
-Use a LaunchAgent plist to keep the API running in the background on macOS. A minimal example:
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key>
-  <string>com.pfo.category-classifier</string>
-  <key>ProgramArguments</key>
-  <array>
-    <string>/Users/pfo/ws/category-classifier/.venv/bin/category-classifier-serve</string>
-  </array>
-  <key>EnvironmentVariables</key>
-  <dict>
-    <key>MODELS_DIR</key>
-    <string>/Users/pfo/ws/category-classifier/models</string>
-    <key>DEFAULT_MODEL</key>
-    <string>personal-v1</string>
-    <key>HOST</key>
-    <string>0.0.0.0</string>
-    <key>PORT</key>
-    <string>8000</string>
-  </dict>
-  <key>RunAtLoad</key>
-  <true/>
-  <key>KeepAlive</key>
-  <true/>
-  <key>StandardOutPath</key>
-  <string>/tmp/category-classifier.out.log</string>
-  <key>StandardErrorPath</key>
-  <string>/tmp/category-classifier.err.log</string>
-</dict>
-</plist>
-```
-
-Load it with `launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.pfo.category-classifier.plist` and unload it with `launchctl bootout gui/$UID ~/Library/LaunchAgents/com.pfo.category-classifier.plist`.
+1. Friend trains model locally into `models/<model_name>/`.
+2. Friend sends you the model folder.
+3. You place it in your local `models/`.
+4. You run `./scripts/upload-model.sh --model <model_name>`.
 
 ## Dataset contract
 

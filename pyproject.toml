@@ -7,7 +7,7 @@ name = "category-classifier"
 version = "0.1.0"
 description = "Local transaction category classifier with train/predict/benchmark CLI."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
   "loguru>=0.7",
   "matplotlib>=3.8",
