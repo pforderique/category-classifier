@@ -26,7 +26,15 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 uv sync --extra dev
 ```
 
-3. Train a model (first run downloads the sentence embedder):
+3. Create a local `.env` file:
+
+```bash
+cp .env.example .env
+```
+
+Fill in required values in `.env`.
+
+4. Train a model (first run downloads the sentence embedder):
 
 ```bash
 uv run category-classifier train \
@@ -36,7 +44,7 @@ uv run category-classifier train \
 
 The output JSON shows the model pack location and evaluation metrics (accuracy, F1, confusion matrix). Model packs are saved to `models/<model_name>/` with figures/ subfolder containing confusion matrix and per-class accuracy plots.
 
-4. Predict on a transaction:
+5. Predict on a transaction:
 
 ```bash
 uv run category-classifier predict \
@@ -45,7 +53,7 @@ uv run category-classifier predict \
   --price "120.50"
 ```
 
-5. Benchmark end-to-end latency:
+6. Benchmark end-to-end latency:
 
 ```bash
 uv run category-classifier benchmark \
@@ -62,11 +70,9 @@ Install the server extra:
 uv sync --extra dev --extra server
 ```
 
-Copy model packs under `models/<model_name>/` (or set a custom models directory with `MODELS_DIR`), then run:
+The serve command loads `.env` automatically, so keep server settings in your `.env`:
 
 ```bash
-export MODELS_DIR="/Users/pfo/ws/category-classifier/models"
-export DEFAULT_MODEL="personal-v1"  # optional
 uv run category-classifier-serve
 ```
 
@@ -187,7 +193,7 @@ Example response:
 Start with no default model and switch later:
 
 ```bash
-unset DEFAULT_MODEL
+# clear DEFAULT_MODEL in .env, then run:
 uv run category-classifier-serve
 ```
 
@@ -205,10 +211,43 @@ Environment variables:
 - `MODELS_DIR` - directory containing model packs as subdirectories, e.g. `models/personal-v1/`
 - Relative `MODELS_DIR` paths resolve from the project root (the directory containing `app/` and `category_classifier/`)
 - `DEFAULT_MODEL` - optional model name to load at startup
-- `MODEL_PACK_PATH` - deprecated compatibility fallback; when set, it is mapped to `MODELS_DIR=<parent>` and `DEFAULT_MODEL=<basename>`
 - `INFERENCE_DEVICE` - `auto`, `cpu`, or `mps`
 - `HOST` - bind address, default `0.0.0.0`
 - `PORT` - bind port, default `8000`
+
+### upload-model tool
+
+Use `scripts/upload-model.sh` to upload model packs to your VM over SSH.
+
+Upload one model:
+
+```bash
+./scripts/upload-model.sh --model personal-v1
+```
+
+Upload all valid model packs under `LOCAL_MODELS_DIR`:
+
+```bash
+./scripts/upload-model.sh --all
+```
+
+The script always requires confirmation (`Type UPLOAD to continue`) before any transfer.
+
+Deployment `.env` settings used by upload:
+
+- `LOCAL_MODELS_DIR` - local source directory, usually `./models`
+- `DEPLOY_SSH_HOST` - VM host/IP
+- `DEPLOY_SSH_USER` - SSH user
+- `DEPLOY_SSH_PORT` - SSH port (default `22`)
+- `DEPLOY_SSH_KEY_PATH` - optional key path
+- `DEPLOY_MODELS_DIR` - remote directory where model folders will be uploaded
+
+### friend workflow
+
+1. Share `.env` with your friend privately (it may include deployment credentials).
+2. Friend clones repo and runs `uv sync --extra dev --extra server`.
+3. Friend trains a model into `models/<model_name>/`.
+4. Friend uploads with `./scripts/upload-model.sh --model <model_name>` (or `--all`).
 
 ### launchd deployment
 

@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import uvicorn
 
-from app.config import ServerConfig
+from app.config import ServerConfig, load_dotenv
 from app.server import create_app
 
 
 def main() -> None:
     """Run the API server using environment configuration."""
+    load_dotenv()
     config = ServerConfig.from_env()
     app = create_app(
         models_dir=config.models_dir,
