@@ -73,7 +73,7 @@ uv run category-classifier-serve
 The server exposes these routes:
 
 - `GET /healthz`
-- `GET /prediction/?item_name=...&price=...`
+- `GET /prediction?item_name=...&price=...`
 - `GET /available_models`
 - `GET /model`
 - `POST /switch` with JSON body `{"model_name":"<name>"}`
@@ -173,7 +173,7 @@ Example response:
 Run a prediction:
 
 ```bash
-curl "http://127.0.0.1:8000/prediction/?item_name=Monthly%20Rent&price=2200.00"
+curl "http://127.0.0.1:8000/prediction?item_name=Monthly%20Rent&price=2200.00"
 ```
 
 Example response:
@@ -197,7 +197,7 @@ Then in another shell:
 curl -X POST "http://127.0.0.1:8000/switch" \
   -H "Content-Type: application/json" \
   -d '{"model_name":"personal-v1"}'
-curl "http://127.0.0.1:8000/prediction/?item_name=Coffee%20Shop&price=6.50"
+curl "http://127.0.0.1:8000/prediction?item_name=Coffee%20Shop&price=6.50"
 ```
 
 Environment variables:

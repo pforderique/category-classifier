@@ -67,6 +67,7 @@ def switch_active_model(request: Request, payload: SwitchModelRequest) -> dict[s
 
 
 @router.get("/prediction")
+@router.get("/prediction/", include_in_schema=False)
 def prediction(
     request: Request,
     item_name: str = Query(..., min_length=1),
