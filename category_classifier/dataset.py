@@ -92,8 +92,7 @@ def load_transactions(file_path: Path) -> pd.DataFrame:
     errors: list[str] = []
     rows: list[dict[str, object]] = []
 
-    row_number = 1
-    for _, row in raw_df.iterrows():
+    for row_number, (_, row) in enumerate(raw_df.iterrows(), start=2):
         row_errors: list[str] = []
         missing_fields: list[str] = []
 
@@ -151,8 +150,6 @@ def load_transactions(file_path: Path) -> pd.DataFrame:
                 "category_clean": clean_category,
             }
         )
-        row_number += 1
-
     if errors:
         raise DataValidationError(errors)
 

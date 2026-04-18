@@ -62,17 +62,21 @@ Install the server extra:
 uv sync --extra dev --extra server
 ```
 
-Run the API with a configured model pack path:
+Copy model packs under `models/<model_name>/` (or set a custom models directory with `MODELS_DIR`), then run:
 
 ```bash
-export MODEL_PACK_PATH="/Users/pfo/ws/category-classifier/artifacts/personal-v1"
+export MODELS_DIR="/Users/pfo/ws/category-classifier/models"
+export DEFAULT_MODEL="personal-v1"  # optional
 uv run category-classifier-serve
 ```
 
-The server exposes only these routes:
+The server exposes these routes:
 
 - `GET /healthz`
 - `GET /prediction/?item_name=...&price=...`
+- `GET /available_models`
+- `GET /model`
+- `POST /switch` with JSON body `{"model_name":"<name>"}`
 
 Example request:
 
@@ -82,7 +86,8 @@ curl "http://127.0.0.1:8000/prediction/?item_name=Monthly%20Rent&price=2200.00"
 
 Environment variables:
 
-- `MODEL_PACK_PATH` - path to the model pack folder, such as `artifacts/personal-v1/`
+- `MODELS_DIR` - directory containing model packs as subdirectories, e.g. `models/personal-v1/`
+- `DEFAULT_MODEL` - optional model name to load at startup
 - `INFERENCE_DEVICE` - `auto`, `cpu`, or `mps`
 - `HOST` - bind address, default `0.0.0.0`
 - `PORT` - bind port, default `8000`
@@ -104,8 +109,10 @@ Use a LaunchAgent plist to keep the API running in the background on macOS. A mi
   </array>
   <key>EnvironmentVariables</key>
   <dict>
-    <key>MODEL_PACK_PATH</key>
-    <string>/Users/pfo/ws/category-classifier/artifacts/personal-v1</string>
+    <key>MODELS_DIR</key>
+    <string>/Users/pfo/ws/category-classifier/models</string>
+    <key>DEFAULT_MODEL</key>
+    <string>personal-v1</string>
     <key>HOST</key>
     <string>0.0.0.0</string>
     <key>PORT</key>
@@ -158,4 +165,4 @@ Each trained model pack writes:
 - During training, you may see matplotlib font warnings about emoji glyphs—these are harmless and do not affect PNG figure generation or model accuracy.
 - Price normalization uses training set statistics; the same `price_mean` and `price_std` are applied at predict time to avoid data leakage.
 - Dataset rows with missing required fields are logged and skipped.
-- The API server is intentionally single-purpose and uses one predictor instance per process.
+- The API server keeps one active predictor instance per process and can switch active models at runtime.

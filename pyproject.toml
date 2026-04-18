@@ -32,7 +32,7 @@ server = [
 
 [project.scripts]
 category-classifier = "category_classifier.cli:main"
-category-classifier-serve = "app.server:main"
+category-classifier-serve = "app.main:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
