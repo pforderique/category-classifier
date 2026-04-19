@@ -14,7 +14,7 @@ def main() -> None:
     config = ServerConfig.from_env()
     app = create_app(
         models_dir=config.models_dir,
-        default_model=config.default_model,
         device=config.device,
+        max_loaded_models=config.max_loaded_models,
     )
     uvicorn.run(app, host=config.host, port=config.port, log_level="info")
