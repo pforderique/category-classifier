@@ -14,34 +14,28 @@ class ServerConfig:
     """Runtime configuration for the inference service."""
 
     models_dir: str = "models"
-    default_model: str | None = None
     device: str = "auto"
     host: str = "0.0.0.0"
     port: int = 8000
+    max_loaded_models: int = 3
 
     @classmethod
     def from_env(cls) -> "ServerConfig":
         """Load server configuration from environment variables."""
         models_dir = os.environ.get("MODELS_DIR")
-        default_model = os.environ.get("DEFAULT_MODEL")
 
         legacy_model_pack_path = os.environ.get("MODEL_PACK_PATH")
         if legacy_model_pack_path:
             legacy_path = Path(legacy_model_pack_path).expanduser()
             if models_dir is None:
                 models_dir = str(legacy_path.parent)
-            if default_model is None:
-                default_model = legacy_path.name
             logger.warning(
-                "MODEL_PACK_PATH is deprecated; prefer MODELS_DIR and DEFAULT_MODEL."
+                "MODEL_PACK_PATH is deprecated; prefer MODELS_DIR."
             )
 
         if models_dir is None:
             models_dir = "models"
         logger.info("Using models directory: {}", models_dir)
-
-        if default_model:
-            logger.info("Default model requested at startup: {}", default_model)
 
         device = os.environ.get("INFERENCE_DEVICE", "auto")
         logger.info("Using inference device: {}", device)
@@ -58,12 +52,21 @@ class ServerConfig:
             raise ValueError(f"PORT must be between 1 and 65535, got {port}.")
         logger.info("API server will listen on port: {}", port)
 
+        raw_max = os.environ.get("MAX_LOADED_MODELS", "3")
+        try:
+            max_loaded_models = int(raw_max)
+        except ValueError as exc:
+            raise ValueError(f"MAX_LOADED_MODELS must be an integer, got '{raw_max}'.") from exc
+        if max_loaded_models < 1:
+            raise ValueError(f"MAX_LOADED_MODELS must be at least 1, got {max_loaded_models}.")
+        logger.info("Max models held in memory: {}", max_loaded_models)
+
         return cls(
             models_dir=models_dir,
-            default_model=default_model,
             device=device,
             host=host,
             port=port,
+            max_loaded_models=max_loaded_models,
         )
 
 

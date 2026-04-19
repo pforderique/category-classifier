@@ -15,11 +15,11 @@ from app.model_runtime import configure_runtime_state
 
 def create_app(
     models_dir: str = "models",
-    default_model: str | None = None,
     device: str = "auto",
     encoder: TextEncoder | None = None,
+    max_loaded_models: int = 3,
 ) -> FastAPI:
-    """Create a FastAPI app with model discovery and switch support."""
+    """Create a FastAPI app with an LRU model cache."""
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -27,14 +27,14 @@ def create_app(
         app.state.config = {
             "models_dir": str(resolved_models_dir),
             "device": device,
-            "default_model": default_model,
+            "max_loaded_models": max_loaded_models,
         }
         configure_runtime_state(
             app=app,
             models_dir=resolved_models_dir,
             device=device,
             encoder=encoder,
-            default_model=default_model,
+            max_loaded_models=max_loaded_models,
         )
         yield
 
