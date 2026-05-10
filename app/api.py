@@ -34,6 +34,7 @@ def model_prediction(
     model_name: str,
     item_name: str = Query(..., min_length=1),
     price: str = Query(..., min_length=1),
+    date: str | None = Query(None),
 ) -> dict[str, str]:
     """Returns a prediction from the named model given item_name and price."""
     cleaned_item_name = item_name.strip()
@@ -68,11 +69,13 @@ def model_prediction(
         ) from exc
 
     try:
-        resolved_prediction = predictor.predict(item_name=cleaned_item_name, price=price)
+        resolved_prediction = predictor.predict(
+            item_name=cleaned_item_name, price=price, iso_date=date
+        )
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Could not parse price.",
+            detail="Could not parse price or date.",
         ) from exc
     except Exception as exc:  # pragma: no cover - defensive guardrail
         logger.exception("Prediction failed")

@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 import numpy as np
 import torch
 
 from category_classifier.model_pack import load_model_pack
 from category_classifier.encoder import SentenceTransformerEncoder, TextEncoder
 from category_classifier.model import LinearClassifier
-from category_classifier.preprocessing import parse_price
+from category_classifier.preprocessing import encode_cyclical_date, parse_price
 from category_classifier.runtime import resolve_device
 
 
@@ -36,11 +37,15 @@ class Predictor:
 
         model_state = self._pack.model_state
         expected_input_dim = int(model_state["input_dim"])
-        if encoder.embedding_dim + 1 != expected_input_dim:
+        # input_dim = encoder.embedding_dim + 1 (price) + 4 (date features) OR
+        # input_dim = encoder.embedding_dim + 1 (price) if no date features
+        has_date_features = expected_input_dim == encoder.embedding_dim + 5
+        if not (expected_input_dim == encoder.embedding_dim + 1 or has_date_features):
             raise ValueError(
                 "Encoder embedding size does not match model pack: "
                 f"expected {expected_input_dim - 1}, got {encoder.embedding_dim}."
             )
+        self.has_date_features = has_date_features
 
         self.model = LinearClassifier(
             input_dim=expected_input_dim,
@@ -58,7 +63,7 @@ class Predictor:
             idx: clean_to_display[clean] for idx, clean in self.id_to_clean.items()
         }
 
-    def predict(self, item_name: str, price: object) -> str:
+    def predict(self, item_name: str, price: object, iso_date: str | None = None) -> str:
         """Predict display category label (including emoji when present)."""
         text = item_name.strip()
         if not text:
@@ -67,7 +72,15 @@ class Predictor:
         price_norm = (parsed_price - self.price_mean) / self.price_std
 
         embedding = self.encoder.encode([text])
-        feature = np.concatenate([embedding, np.array([[price_norm]], dtype=np.float32)], axis=1)
+        features_list = [embedding, np.array([[price_norm]], dtype=np.float32)]
+
+        if self.has_date_features:
+            if iso_date is None:
+                iso_date = datetime.now().date().isoformat()
+            date_features = np.array([encode_cyclical_date(iso_date)], dtype=np.float32).reshape(1, -1)
+            features_list.append(date_features)
+
+        feature = np.concatenate(features_list, axis=1)
         tensor = torch.tensor(feature, dtype=torch.float32, device=self.device)
         with torch.no_grad():
             logits = self.model(tensor)

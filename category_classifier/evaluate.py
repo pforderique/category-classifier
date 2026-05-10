@@ -114,6 +114,7 @@ def evaluate_model(
         prices=test_df["price"].to_numpy(dtype=np.float32),
         price_mean=price_mean,
         price_std=price_std,
+        iso_dates=test_df["date"].tolist(),
     )
     pred_ids = _predict_ids(trained.model, test_features, device=device)
 

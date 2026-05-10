@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import math
 import unicodedata
 
 
@@ -83,3 +84,24 @@ def normalize_category(value: object) -> str:
     if not cleaned:
         raise ValueError("category became empty after emoji stripping")
     return cleaned
+
+
+def encode_cyclical_date(iso_date: str) -> tuple[float, float, float, float]:
+    """Encode cyclical date features as sin/cos for month and day-of-month.
+
+    Returns (month_sin, month_cos, day_sin, day_cos) to capture yearly patterns.
+    """
+    date = datetime.fromisoformat(iso_date).date()
+
+    month = date.month
+    day = date.day
+
+    month_rad = 2 * math.pi * month / 12
+    day_rad = 2 * math.pi * day / 31
+
+    return (
+        math.sin(month_rad),
+        math.cos(month_rad),
+        math.sin(day_rad),
+        math.cos(day_rad),
+    )

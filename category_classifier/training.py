@@ -17,6 +17,7 @@ import loguru
 from category_classifier.dataset import CategoryMappings, build_category_mappings
 from category_classifier.encoder import TextEncoder
 from category_classifier.model import LinearClassifier
+from category_classifier.preprocessing import encode_cyclical_date
 from category_classifier.runtime import Device, resolve_device
 
 
@@ -97,11 +98,22 @@ def prepare_features(
     prices: np.ndarray,
     price_mean: float,
     price_std: float,
+    iso_dates: list[str] | None = None,
 ) -> np.ndarray:
-    """Prepare model features by encoding item names and normalizing prices."""
+    """Prepare model features by encoding item names, normalizing prices, and encoding dates."""
     embeddings = encoder.encode(item_names)
     price_norm = ((prices - price_mean) / price_std).reshape(-1, 1)
-    features = np.concatenate([embeddings, price_norm], axis=1)
+
+    features_list = [embeddings, price_norm]
+
+    if iso_dates is not None:
+        date_features = np.array(
+            [encode_cyclical_date(date_str) for date_str in iso_dates],
+            dtype=np.float32,
+        )
+        features_list.append(date_features)
+
+    features = np.concatenate(features_list, axis=1)
     return features.astype(np.float32)
 
 
@@ -175,6 +187,7 @@ def train_model(
         prices=train_df["price"].to_numpy(dtype=np.float32),
         price_mean=price_mean,
         price_std=price_std,
+        iso_dates=train_df["date"].tolist(),
     )
 
     _logger.info(f"Training on {len(train_df)} rows with {len(mappings.clean_to_id)} classes using device: {resolved_device}")
