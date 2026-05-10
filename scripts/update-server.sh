@@ -101,7 +101,7 @@ else
 fi
 
 echo "Pulling latest code on remote..."
-remote_cmd "cd '${DEPLOY_REPO_DIR}' && git fetch origin && git checkout '${CURRENT_BRANCH}' && git pull origin '${CURRENT_BRANCH}'"
+remote_cmd "cd '${DEPLOY_REPO_DIR}' && sudo git fetch origin && sudo git checkout '${CURRENT_BRANCH}' && sudo git pull origin '${CURRENT_BRANCH}'"
 
 echo "Restarting service '${DEPLOY_SERVICE}'..."
 remote_cmd "sudo systemctl restart '${DEPLOY_SERVICE}'"

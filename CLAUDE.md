@@ -1,0 +1,55 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Commands
+
+```bash
+# Install dependencies
+uv sync --extra dev                    # dev + training deps
+uv sync --extra server                 # FastAPI server deps
+uv sync --extra dev --extra server     # all
+
+# Tests
+uv run pytest tests/
+uv run pytest tests/test_api_server.py -v   # single file
+
+# Train a model
+uv run category-classifier train --data data/transactions.csv --model-name personal-v1
+
+# Run inference server
+uv run category-classifier-serve
+
+# Deploy
+./scripts/upload-model.sh --model personal-v1 --approve
+./scripts/update-server.sh --approve
+```
+
+## Architecture
+
+Two entry points defined in `pyproject.toml`:
+- `category-classifier` → `category_classifier/cli.py` (train / predict / benchmark)
+- `category-classifier-serve` → `app/main.py` (FastAPI inference server)
+
+### Training pipeline (`category_classifier/`)
+
+Data flow: `dataset.py` loads CSV → `encoder.py` embeds item names via `paraphrase-MiniLM-L3-v2` → `training.py` trains a `LinearClassifier` (`model.py`) on `[embedding; normalized_price]` → `model_pack.py` saves the model pack → `evaluate.py` writes metrics + PNG figures.
+
+`preprocessing.py` handles price parsing and category normalization (emoji stripped for internal labels, preserved for display). `predictor.py` is the inference wrapper used both by CLI and server.
+
+### Inference server (`app/`)
+
+`config.py` reads `.env` → `server.py` creates the FastAPI app → `api.py` registers routes → `model_runtime.py` manages an LRU cache of up to `MAX_LOADED_MODELS` loaded predictors.
+
+Key routes:
+- `GET /healthz`
+- `GET /available_models`
+- `GET /models/{model_name}/prediction?item_name=X&price=Y`
+
+### Model pack format
+
+Each trained model saves to `models/<name>/`: `model.pt`, `manifest.json` (encoder + price stats + class order), `label_map.json`, `metrics.json`, `figures/`.
+
+### Deployment
+
+GCP VM (gcloud). Scripts in `scripts/` use env vars from `.env` (`DEPLOY_GCLOUD_INSTANCE`, `DEPLOY_GCLOUD_ZONE`, etc.). Server runs as a systemd service named `category-classifier`.
