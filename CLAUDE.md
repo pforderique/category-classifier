@@ -53,3 +53,23 @@ Each trained model saves to `models/<name>/`: `model.pt`, `manifest.json` (encod
 ### Deployment
 
 GCP VM (gcloud). Scripts in `scripts/` use env vars from `.env` (`DEPLOY_GCLOUD_INSTANCE`, `DEPLOY_GCLOUD_ZONE`, etc.). Server runs as a systemd service named `category-classifier`.
+
+## Deployment Scripts
+
+**To deploy:** Use these two scripts in order. Both are in `scripts/`:
+
+### `./scripts/upload-model.sh --model <model-name> --approve`
+
+Uploads a trained model to pfo-server. The model is synced via scp to `/opt/category-classifier/models/<model-name>/`. Use when you've trained a new model and want to make it available on the inference server.
+
+Example: `./scripts/upload-model.sh --model piero-v2 --approve`
+
+**When to use:** After training a new model locally with `uv run category-classifier train --data ... --model-name piero-v2`.
+
+### `./scripts/update-server.sh --approve`
+
+Pulls the latest code from `main` branch on the pfo-server VM and restarts the `category-classifier` systemd service. Use when you've committed code changes (new date encoding, API updates, etc.) and want them live.
+
+**When to use:** After committing code changes that affect the server behavior (new features, bug fixes, training pipeline changes).
+
+**Order:** Always run `upload-model.sh` *before* `update-server.sh` if you're deploying a new model alongside code changes. If code only, just run `update-server.sh`.
