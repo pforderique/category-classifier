@@ -36,10 +36,11 @@ server = [
 [project.scripts]
 category-classifier = "category_classifier.cli:main"
 category-classifier-serve = "app.main:main"
+category-classifier-train-card = "card_classifier.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["category_classifier*", "app*"]
+include = ["category_classifier*", "card_classifier*", "app*"]
 
 # On Linux (VM), use CPU-only torch to avoid bundled CUDA libs (~1 GB RAM overhead).
 # macOS gets standard PyPI torch which includes MPS support.

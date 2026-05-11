@@ -14,6 +14,7 @@ def main() -> None:
     config = ServerConfig.from_env()
     app = create_app(
         models_dir=config.models_dir,
+        card_models_dir=config.card_models_dir,
         device=config.device,
         max_loaded_models=config.max_loaded_models,
     )

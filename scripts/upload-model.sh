@@ -4,12 +4,13 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/upload-model.sh --model <model_name> [--env-file <path>]
-  scripts/upload-model.sh --all [--env-file <path>]
-  scripts/upload-model.sh --model <model_name> --approve [--env-file <path>]
-  scripts/upload-model.sh --all --approve [--env-file <path>]
+  scripts/upload-model.sh --model <model_name> [--card] [--env-file <path>]
+  scripts/upload-model.sh --all [--card] [--env-file <path>]
+  scripts/upload-model.sh --model <model_name> --approve [--card] [--env-file <path>]
+  scripts/upload-model.sh --all --approve [--card] [--env-file <path>]
 
-Uploads one model pack or all model packs from LOCAL_MODELS_DIR to a GCE VM.
+Uploads one model pack or all model packs from LOCAL_MODELS_DIR (or LOCAL_CARD_MODELS_DIR
+when --card is given) to a GCE VM.
 Uses gcloud compute ssh/scp under the hood.
 EOF
 }
@@ -21,6 +22,7 @@ ENV_FILE="${REPO_ROOT}/.env"
 MODE="single"
 MODEL_NAME=""
 AUTO_APPROVE=0
+CARD_MODE=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -32,6 +34,10 @@ while [[ $# -gt 0 ]]; do
     --all)
       MODE="all"
       MODEL_NAME=""
+      shift
+      ;;
+    --card)
+      CARD_MODE=1
       shift
       ;;
     --env-file)
@@ -85,6 +91,16 @@ fi
 LOCAL_MODELS_DIR="${LOCAL_MODELS_DIR:-${REPO_ROOT}/models}"
 LOCAL_MODELS_DIR="${LOCAL_MODELS_DIR/#\~/$HOME}"
 DEPLOY_MODELS_DIR="${DEPLOY_MODELS_DIR/#\~/$HOME}"
+
+LOCAL_CARD_MODELS_DIR="${LOCAL_CARD_MODELS_DIR:-${REPO_ROOT}/card-models}"
+LOCAL_CARD_MODELS_DIR="${LOCAL_CARD_MODELS_DIR/#\~/$HOME}"
+DEPLOY_CARD_MODELS_DIR="${DEPLOY_CARD_MODELS_DIR:-}"
+if [[ -z "${DEPLOY_CARD_MODELS_DIR}" ]]; then
+  # Default: sibling of DEPLOY_MODELS_DIR named card-models
+  DEPLOY_CARD_MODELS_DIR="$(dirname "${DEPLOY_MODELS_DIR}")/card-models"
+fi
+DEPLOY_CARD_MODELS_DIR="${DEPLOY_CARD_MODELS_DIR/#\~/$HOME}"
+
 DEPLOY_USE_SUDO="${DEPLOY_USE_SUDO:-0}"
 DEPLOY_STAGING_DIR="${DEPLOY_STAGING_DIR:-/tmp/category-classifier-upload-${USER}}"
 
@@ -93,8 +109,17 @@ if [[ "${DEPLOY_USE_SUDO}" != "0" && "${DEPLOY_USE_SUDO}" != "1" ]]; then
   exit 1
 fi
 
-if [[ ! -d "${LOCAL_MODELS_DIR}" ]]; then
-  echo "Local models directory does not exist: ${LOCAL_MODELS_DIR}" >&2
+# Select active local/remote dirs based on --card flag.
+if [[ "${CARD_MODE}" == "1" ]]; then
+  ACTIVE_LOCAL_DIR="${LOCAL_CARD_MODELS_DIR}"
+  ACTIVE_DEPLOY_DIR="${DEPLOY_CARD_MODELS_DIR}"
+else
+  ACTIVE_LOCAL_DIR="${LOCAL_MODELS_DIR}"
+  ACTIVE_DEPLOY_DIR="${DEPLOY_MODELS_DIR}"
+fi
+
+if [[ ! -d "${ACTIVE_LOCAL_DIR}" ]]; then
+  echo "Local models directory does not exist: ${ACTIVE_LOCAL_DIR}" >&2
   exit 1
 fi
 
@@ -133,7 +158,7 @@ if [[ "${MODE}" == "all" ]]; then
     if is_valid_pack "${candidate}"; then
       MODELS+=("${model_name}")
     fi
-  done < <(find "${LOCAL_MODELS_DIR}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+  done < <(find "${ACTIVE_LOCAL_DIR}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
 else
   if [[ -z "${MODEL_NAME}" ]]; then
     echo "Missing required argument: --model <model_name>" >&2
@@ -143,7 +168,7 @@ else
     echo "Model name must be a direct directory name: ${MODEL_NAME}" >&2
     exit 2
   fi
-  model_path="${LOCAL_MODELS_DIR}/${MODEL_NAME}"
+  model_path="${ACTIVE_LOCAL_DIR}/${MODEL_NAME}"
   if [[ ! -d "${model_path}" ]]; then
     echo "Model does not exist: ${model_path}" >&2
     exit 1
@@ -156,7 +181,7 @@ else
 fi
 
 if [[ "${#MODELS[@]}" -eq 0 ]]; then
-  echo "No valid model packs found in ${LOCAL_MODELS_DIR}" >&2
+  echo "No valid model packs found in ${ACTIVE_LOCAL_DIR}" >&2
   exit 1
 fi
 
@@ -164,9 +189,10 @@ echo "Upload target:"
 echo "  GCE instance: ${DEPLOY_GCLOUD_INSTANCE}"
 echo "  Zone:         ${DEPLOY_GCLOUD_ZONE}"
 echo "  Project:      ${DEPLOY_GCLOUD_PROJECT}"
-echo "  Remote models dir: ${DEPLOY_MODELS_DIR}"
+echo "  Remote models dir: ${ACTIVE_DEPLOY_DIR}"
 echo "  Use sudo:     ${DEPLOY_USE_SUDO}"
-echo "  Local models dir:  ${LOCAL_MODELS_DIR}"
+echo "  Local models dir:  ${ACTIVE_LOCAL_DIR}"
+echo "  Card mode:    ${CARD_MODE}"
 echo "  Auto approve: ${AUTO_APPROVE}"
 echo "  Models:"
 for model in "${MODELS[@]}"; do
@@ -189,8 +215,8 @@ if [[ "${DEPLOY_USE_SUDO}" == "1" ]]; then
   fi
 fi
 
-if ! remote_cmd "$(maybe_sudo "mkdir -p '${DEPLOY_MODELS_DIR}'")" >/dev/null; then
-  echo "Failed to create remote models dir: ${DEPLOY_MODELS_DIR}" >&2
+if ! remote_cmd "$(maybe_sudo "mkdir -p '${ACTIVE_DEPLOY_DIR}'")" >/dev/null; then
+  echo "Failed to create remote models dir: ${ACTIVE_DEPLOY_DIR}" >&2
   echo "If this path needs root permissions, set DEPLOY_USE_SUDO=1 in .env." >&2
   echo "Or use a user-writable path like /home/<user>/category-classifier/models." >&2
   exit 1
@@ -200,7 +226,7 @@ remote_cmd "rm -rf '${DEPLOY_STAGING_DIR}' && mkdir -p '${DEPLOY_STAGING_DIR}'" 
 
 EXISTING_REMOTE_MODELS=()
 for model in "${MODELS[@]}"; do
-  if remote_cmd "$(maybe_sudo "test -d '${DEPLOY_MODELS_DIR}/${model}'")" >/dev/null 2>&1; then
+  if remote_cmd "$(maybe_sudo "test -d '${ACTIVE_DEPLOY_DIR}/${model}'")" >/dev/null 2>&1; then
     EXISTING_REMOTE_MODELS+=("${model}")
   fi
 done
@@ -219,11 +245,11 @@ if [[ "${#EXISTING_REMOTE_MODELS[@]}" -gt 0 ]]; then
 fi
 
 for model in "${MODELS[@]}"; do
-  local_path="${LOCAL_MODELS_DIR}/${model}"
+  local_path="${ACTIVE_LOCAL_DIR}/${model}"
   remote_cmd "rm -rf '${DEPLOY_STAGING_DIR}/${model}'" >/dev/null
   "${GCLOUD_SCP[@]}" "${local_path}" "${DEPLOY_GCLOUD_INSTANCE}:${DEPLOY_STAGING_DIR}"
-  remote_cmd "$(maybe_sudo "rm -rf '${DEPLOY_MODELS_DIR}/${model}'")" >/dev/null
-  remote_cmd "$(maybe_sudo "mv '${DEPLOY_STAGING_DIR}/${model}' '${DEPLOY_MODELS_DIR}/${model}'")" >/dev/null
+  remote_cmd "$(maybe_sudo "rm -rf '${ACTIVE_DEPLOY_DIR}/${model}'")" >/dev/null
+  remote_cmd "$(maybe_sudo "mv '${DEPLOY_STAGING_DIR}/${model}' '${ACTIVE_DEPLOY_DIR}/${model}'")" >/dev/null
   echo "Uploaded model: ${model}"
 done
 

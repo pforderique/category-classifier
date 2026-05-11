@@ -14,6 +14,7 @@ class ServerConfig:
     """Runtime configuration for the inference service."""
 
     models_dir: str = "models"
+    card_models_dir: str = "card-models"
     device: str = "auto"
     host: str = "0.0.0.0"
     port: int = 8000
@@ -36,6 +37,9 @@ class ServerConfig:
         if models_dir is None:
             models_dir = "models"
         logger.info("Using models directory: {}", models_dir)
+
+        card_models_dir = os.environ.get("CARD_MODELS_DIR", "card-models")
+        logger.info("Using card models directory: {}", card_models_dir)
 
         device = os.environ.get("INFERENCE_DEVICE", "auto")
         logger.info("Using inference device: {}", device)
@@ -63,6 +67,7 @@ class ServerConfig:
 
         return cls(
             models_dir=models_dir,
+            card_models_dir=card_models_dir,
             device=device,
             host=host,
             port=port,
