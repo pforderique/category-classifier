@@ -86,11 +86,13 @@ def normalize_category(value: object) -> str:
     return cleaned
 
 
-def encode_cyclical_date(iso_date: str) -> tuple[float, float, float, float]:
+def encode_cyclical_date(date_str: str) -> tuple[float, float, float, float]:
     """Encode cyclical date features as sin/cos for month and day-of-month.
 
+    Accepts dates in MM/DD/YYYY, MM/DD/YY, or YYYY-MM-DD format.
     Returns (month_sin, month_cos, day_sin, day_cos) to capture yearly patterns.
     """
+    iso_date = parse_date(date_str)
     date = datetime.fromisoformat(iso_date).date()
 
     month = date.month
