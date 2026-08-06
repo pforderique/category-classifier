@@ -15,6 +15,9 @@ from category_classifier.preprocessing import normalize_category, parse_date, pa
 
 REQUIRED_COLUMNS = ("item", "cost", "date", "category")
 
+# Alternate header spellings accepted for a required column.
+COLUMN_ALIASES = {"cost": ("amount", "price")}
+
 
 @dataclass(frozen=True)
 class CategoryMappings:
@@ -62,6 +65,14 @@ def _resolve_required_columns(raw_df: pd.DataFrame) -> dict[str, str]:
                 ]
             )
         normalized_to_original[normalized_name] = str(original_name)
+
+    for column, aliases in COLUMN_ALIASES.items():
+        if column in normalized_to_original:
+            continue
+        for alias in aliases:
+            if alias in normalized_to_original:
+                normalized_to_original[column] = normalized_to_original[alias]
+                break
 
     missing = [column for column in REQUIRED_COLUMNS if column not in normalized_to_original]
     if missing:

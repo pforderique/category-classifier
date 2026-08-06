@@ -7,7 +7,13 @@ import math
 import unicodedata
 
 
-DATE_FORMATS = ("%m/%d/%Y", "%m/%d/%y", "%Y-%m-%d")
+DATE_FORMATS = (
+    "%m/%d/%Y",
+    "%m/%d/%y",
+    "%Y-%m-%d",
+    "%b %d, %Y",
+    "%B %d, %Y",
+)
 
 
 def parse_price(value: object) -> float:

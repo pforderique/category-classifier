@@ -39,6 +39,57 @@ def test_load_csv_and_tsv(tmp_path: Path) -> None:
     assert list(tsv_df["category_clean"]) == ["Housing", "Subscription"]
 
 
+def test_load_transactions_accepts_amount_alias_for_cost(tmp_path: Path) -> None:
+    path = tmp_path / "amount-alias.csv"
+    _write(
+        path,
+        "Item,Amount,Date,Category\n"
+        "SN House Bill,\"$4,990.00\",\"Dec 31, 2022\",\U0001F3E0Housing\n"
+        "Brother Dues,$578.88,\"Dec 31, 2022\",\U0001F4D8Education\n",
+    )
+
+    df = load_transactions(path)
+    assert list(df["price"]) == [4990.0, 578.88]
+    assert list(df["date"]) == ["2022-12-31", "2022-12-31"]
+    assert list(df["category_clean"]) == ["Housing", "Education"]
+
+
+def test_load_transactions_accepts_price_alias_for_cost(tmp_path: Path) -> None:
+    path = tmp_path / "price-alias.csv"
+    _write(
+        path,
+        "item,price,date,category\n"
+        "February Rent,\"$2,200.00\",1/2/2024,\U0001F3E0Housing\n",
+    )
+
+    df = load_transactions(path)
+    assert list(df["price"]) == [2200.0]
+
+
+def test_load_transactions_prefers_cost_over_alias(tmp_path: Path) -> None:
+    path = tmp_path / "both-cost-and-amount.csv"
+    _write(
+        path,
+        "item,cost,amount,date,category\n"
+        "February Rent,$2200.00,$1.00,1/2/2024,\U0001F3E0Housing\n",
+    )
+
+    df = load_transactions(path)
+    assert list(df["price"]) == [2200.0]
+
+
+def test_load_transactions_missing_cost_and_aliases_raises(tmp_path: Path) -> None:
+    path = tmp_path / "no-cost.csv"
+    _write(
+        path,
+        "item,date,category\nFebruary Rent,1/2/2024,\U0001F3E0Housing\n",
+    )
+
+    with pytest.raises(DataValidationError) as exc:
+        load_transactions(path)
+    assert "cost" in str(exc.value)
+
+
 def test_load_transactions_drops_rows_missing_any_required_fields(tmp_path: Path) -> None:
     broken = tmp_path / "broken.tsv"
     _write(
